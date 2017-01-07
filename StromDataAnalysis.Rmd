@@ -1,0 +1,145 @@
+---
+title: "Harmful & Economic impact on inclement weather events in US"
+author: "Prashanth Jayaseelan"
+date: "January 6, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache=TRUE)
+```
+
+# Synopsis
+This analysis is targeted to answer specific questions towards inclement weather events and their impacts. Goal is to find out which types of weather events are most harmful on the populations health in respect of general injuries and fatalities. Further the economic consequences are analyzed by exploring the financial damage done to both property and crops.
+
+For this research, the NOAA strom database was used and is downloaded from the course site i.e. [Strom Data](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2). Also, documentation on variables can be obtained from [National Weather Service Storm Data Documentation](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf) and [National Climatic Data Center Storm Events FAQ](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2FNCDC%20Storm%20Events-FAQ%20Page.pdf).
+
+Note: This analysis is completely reproducible.
+
+
+# Data Processing:
+This section ingests the data from the source and performs data analysis
+
+## Data Ingest from source:
+
+The data is downloaded from the course site into the local folder and is ingested. Note the data will cached to speed up the process.
+
+```{r cache=TRUE}
+download.file("https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2",destfile = "StromData.csv.bz2")
+stromData=read.csv("StromData.csv.bz2")
+
+```
+
+##Top 10 events causing the fatalities
+The strom data is grouped by event type and sum of fatalities are calculated. The top 10 fatalities causing events are obtained by using the order function with the decreasing as true and the top 10 rows are selected. The top 10 fatality causing events are listed below:
+
+```{r}
+fatal=aggregate(stromData$FATALITIES~stromData$EVTYPE,stromData,sum)
+names(fatal) = c('evt','fatalities')
+top10fatal = fatal[order(fatal$fatalities,decreasing = TRUE),][1:10,]
+top10fatal
+```
+
+
+#Top 10 events causing the maximum injuries
+The strom data is grouped by event type and sum of injuries are calculated. The top 10 injuries causing events are obtained by using the order function with the decreasing as true and the top 10 rows are selected. The top 10 injuries causing events are listed below:
+
+```{r}
+injuries=aggregate(stromData$INJURIES~stromData$EVTYPE,stromData,sum)
+names(injuries) = c('evt','injuries')
+top10injuries = injuries[order(injuries$injuries,decreasing = TRUE),][1:10,]
+top10injuries$evt = factor(top10injuries$evt,levels=top10injuries$evt)
+top10injuries
+```
+
+
+
+## Top 10 events causing Property and Crop damage:
+
+A new attribute i.e. property damage is calculated using the PROPDMG variable based on the PROPDMGEXP variable i.e. "H - Hundreds", "K - Thousands (Kilo)", "M - Millions" & "B - Billions". Here, nested ifelse statements are used to calculate the property damage.
+
+```{r}
+stromData$propDamage = ifelse(stromData$PROPDMGEXP=="H",stromData$PROPDMG * 10^2,
+                    ifelse(stromData$PROPDMGEXP=="K",stromData$PROPDMG * 10^3,
+                    ifelse(stromData$PROPDMGEXP=="M",stromData$PROPDMG * 10^6,
+                    ifelse(stromData$PROPDMGEXP=="B",stromData$PROPDMG * 10^9,stromData$PROPDMG
+                                            )
+                                     )
+                              )
+)
+```
+
+A new attribute i.e. crop damage is calculated using the CROPDMG variable based on the CROPDMGEXP variable i.e. "H - Hundreds", "K - Thousands (Kilo)", "M - Millions" & "B - Billions".Here, nested ifelse statements are used to calculate the property damage.
+
+```{r}
+stromData$cropDamage = ifelse(stromData$CROPDMGEXP=="H",stromData$CROPDMG * 10^2,
+                    ifelse(stromData$CROPDMGEXP=="K",stromData$CROPDMG * 10^3,
+                    ifelse(stromData$CROPDMGEXP=="M",stromData$CROPDMG * 10^6,
+                    ifelse(stromData$CROPDMGEXP=="B",stromData$CROPDMG * 10^9,stromData$CROPDMG
+                                            )
+                                     )
+                              )
+)
+```
+
+
+The strom data is grouped by event and sum is calculated for the property damage field that we derived in the above step. Also, the damages is ordered using decreasing paramter with "TRUE" and the top 10 records are selected. Also, a new field "PROP" is added so that we can use it as a facet in the plot. Similarly the same operations are performed and top 10 events causing crop damage is calculated. Also, a new field "CROP" is added so that we can use it as a facet in the plot.
+
+
+```{r}
+propdamages=aggregate(log(stromData$propDamage)~stromData$EVTYPE,stromData,sum)
+names(propdamages) = c("evt","damage")
+top10propdamages=propdamages[order(propdamages$damage,decreasing = TRUE),][1:10,]
+top10propdamages$cat = "PROP"
+top10propdamages$evt=factor(top10propdamages$evt,levels = top10propdamages$evt)
+
+
+cropdamages=aggregate(as.numeric(stromData$cropDamage)~stromData$EVTYPE,stromData,sum)
+names(cropdamages) = c("evt","damage")
+top10cropdamages=cropdamages[order(cropdamages$damage,decreasing = TRUE),][1:10,]
+top10cropdamages$cat = "CROP"
+top10cropdamages$evt=factor(top10cropdamages$evt,levels = top10cropdamages$evt)
+
+top10damages = rbind(top10propdamages,top10cropdamages)
+top10damages$cat = factor(top10damages$cat,levels = top10damages$cat)
+names(top10damages)=c("evt","damages","Category")
+top10damages
+```
+
+
+#Results:
+
+
+1.Below plot shows the top 10 weather events that caused maximum fatalities.
+
+```{r}
+library(ggplot2)
+top10fatal$evt = factor(top10fatal$evt,levels=top10fatal$evt)
+ggplot(top10fatal,aes(x=evt,y=fatalities)) + geom_bar(stat="identity") + 
+    theme(axis.text.x = element_text(angle = -90, hjust = 1)) +
+    xlab("Weather Event Type") +
+    ylab("Number of fatalities") +
+    ggtitle("Number of fatalities by Top 10 Weather Events")
+```
+
+
+2.Below plot shows the top 10 weather events that caused maximum injuries:
+
+```{r}
+ggplot(top10injuries,aes(x=evt,y=injuries)) + geom_bar(stat="identity") + 
+    theme(axis.text.x = element_text(angle = -90, hjust = 1)) +
+    xlab("Weather Event Type") +
+    ylab("Number of injuries") +
+    ggtitle("Number of injuries by Top 10 Weather Events")
+```
+
+
+3.Below plot shows the top 10 weather events that had maximum economic impact i.e. property and crop.
+
+```{r}
+ggplot(top10damages,aes(x=evt,y=damages)) + facet_grid(.~ Category)+ geom_bar(stat="identity") + 
+    theme(axis.text.x = element_text(angle = -90, hjust = 1)) +
+    xlab("Weather Event Type") +
+    ylab("Damages in US dollars") +
+    ggtitle("Property & Crop damages by Top 10 Weather Events")
+```

@@ -7,7 +7,6 @@ top10fatal = fatal[order(fatal$fatalities,decreasing = TRUE),][1:10,]
 top10fatal$evt = factor(top10fatal$evt,levels=top10fatal$evt)
 
 library(ggplot2)
-
 ggplot(top10fatal,aes(x=evt,y=fatalities)) + geom_bar(stat="identity") + 
     theme(axis.text.x = element_text(angle = -90, hjust = 1)) +
     xlab("Weather Event Type") +
